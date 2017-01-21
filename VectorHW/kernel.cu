@@ -3,15 +3,83 @@
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
+#define N 5
+#define TX = 32
 
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
-
-__global__ void addKernel(int *c, const int *a, const int *b)
+__global__ void scalarMultiplyKernel(float *d_out, float *input, float scalar)
 {
-    int i = threadIdx.x;
-    c[i] = a[i] + b[i];
+    const int i = blockIdx.x*blockDim.x + threadIdx.x;
+    d_out[i] = input[i]*scalar;
 }
 
+/*
+inputs: pointers to an input and output array of floats, their size, and the scalar to be multiplied in
+output: outputArr is overwritten with the result of multiplying every component of inputArr by a scalar
+*/
+void scalarMultiply(float * input, float * output, float scalar)
+{
+	float *d_out = 0;
+	cudaMalloc(&d_out, N*sizeof(float));
+	scalarMultiplyKernel<<<N/TX, TX>>>(d_out, input, scalar);
+	cudaMemcpy(output, d_out, N*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaFree(d_out);
+}
+
+__global__ void componentAddKernel(float *d_out, float *a, float *b)
+{
+	const int i = blockIdx.x*blockDim.x + threadIdx.x;
+	d_out[i] = a[i] +b[i];
+
+}
+
+/*
+inputs: pointers to two input vectore and an output vector of floats, and the size of these vectors
+output: outputArr is overwritten with the result of adding every component of vector a to the corresponding component in vector b
+vectors are implemented as 1D arrays
+*/
+void componentAdd(float * a, float * b, float * output)
+{
+	float *d_out = 0;
+	cudaMalloc(&d_out, N*sizeof(float));
+	componentAddKernel<<<N/TX, TX>>>(d_out, a, b);
+	cudaMemcpy(output, d_out, N*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaFree(d_out);
+}
+
+/*
+Evaluates the linear function y = c*x + d, where multC is a scalar and addD, x, and y are vectors of the same size
+*/
+void linearFunction(float multC, float * addD, float * x, float * y, float * output, float size)
+{
+	scalarMultiply(x, y, multC);
+	componentAdd(addD, y, output);
+}
+__global__ void componentMultiplyKernel(float *d_out, float *a, float *b)
+{
+	const int i = blockIdx.x*blockDim.x + threadIdx.x;
+	d_out[i] = a[i] + b[i];
+
+}
+
+/*
+inputs: pointers to two input vectore and an output vector of floats, and the size of these vectors
+output: outputArr is overwritten with the result of multiplying every component of vector a to the corresponding component in vector b
+vectors are implemented as 1D arrays
+*/
+void componentMultiply(float * a, float * b, float * output)
+{
+	float *d_out = 0;
+	cudaMalloc(&d_out, N*sizeof(float));
+	componentMultiplyKernel<<< N/TX, TX >>>(d_out, a, b);
+	cudaMemcpy(output, d_out, N*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaFree(d_out);
+}
+
+int main() {
+	return 0;
+}
+
+/*
 int main()
 {
     const int arraySize = 5;
@@ -119,3 +187,4 @@ Error:
     
     return cudaStatus;
 }
+*/
